@@ -22,8 +22,8 @@ mnist = input_data.read_data_sets("/tmp/data/", one_hot=True, source_url='http:/
 
 # Training Parameters
 learning_rate = 0.01
-num_steps = 1
-batch_size = 128
+num_steps = 10000
+batch_size = 32
 
 display_step = 1000
 examples_to_show = 10
@@ -51,6 +51,17 @@ biases = {
     'decoder_b1': tf.Variable(tf.random_normal([num_hidden_1])),
     'decoder_b2': tf.Variable(tf.random_normal([num_input])),
 }
+
+def max_unpool_2x2(x, output_shape):
+    out = tf.concat([x, tf.zeros_like(x)], 3)
+    out = tf.concat([out, tf.zeros_like(out)], 2)
+    out_size = output_shape
+    return tf.reshape(out, out_size)
+
+def max_pool_2x2(x):
+    _, argmax = tf.nn.max_pool_with_argmax(x, ksize=[1,2,2,1], strides=[1,2,2,1], padding = 'SAME')
+    pool = tf.nn.max_pool(x, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
+    return pool, argmax
 
 # Building the encoder
 def encoder(x):
@@ -82,7 +93,7 @@ def encoder_cnn(layer):
     layer = tf.layers.conv2d(inputs=layer, filters=32, kernel_size=[3, 3], strides=[1, 1], padding='same', activation=tf.nn.relu, kernel_regularizer=None, name='conv2')
     layer = tf.layers.max_pooling2d(inputs=layer, pool_size=[2, 2], strides=[2, 2], padding='same', name = 'max_pool')
     layer = tf.layers.flatten(inputs=layer, name='flatten_c')
-    layer = tf.layers.dense(inputs=layer, activation=tf.nn.sigmoid, units=10, name='fc_e1')
+    layer = tf.layers.dense(inputs=layer, activation=tf.nn.relu, units=10, name='fc_e1')
 
     # layer = tf.layers.batch_normalization(inputs=x, training=mode)
     return layer
@@ -92,10 +103,10 @@ def encoder_cnn(layer):
 def decoder_cnn(layer):
     layer = tf.layers.dense(inputs=layer, activation=tf.nn.sigmoid, units=49, name='fc_d1')
     layer = tf.reshape(tensor=layer, shape=[-1, 7, 7, 1])
-    layer = tf.image.resize_bilinear(images=layer, size=[layer.shape[1] * 2, layer.shape[2] * 2])
-    layer = tf.layers.conv2d_transpose(inputs=layer, filters=64, kernel_size=[3, 3], strides=[1, 1], padding='same', activation=tf.nn.relu, name='conv_trans1')
-    layer = tf.image.resize_bilinear(images=layer, size=[layer.shape[1] * 2, layer.shape[2] * 2])
-    layer = tf.layers.conv2d_transpose(inputs=layer, filters=32, kernel_size=[3, 3], strides=[1, 1], padding='same', activation=tf.nn.relu, name='conv_trans2')
+    layer = tf.image.resize_nearest_neighbor(images=layer, size=[layer.shape[1] * 2, layer.shape[2] * 2])
+    layer = tf.layers.conv2d_transpose(inputs=layer, filters=32, kernel_size=[3, 3], strides=[1, 1], padding='same', activation=tf.nn.sigmoid, name='conv_trans1')
+    layer = tf.image.resize_nearest_neighbor(images=layer, size=[layer.shape[1] * 2, layer.shape[2] * 2])
+    layer = tf.layers.conv2d_transpose(inputs=layer, filters=64, kernel_size=[3, 3], strides=[1, 1], padding='same', activation=tf.nn.sigmoid, name='conv_trans2')
     layer = tf.layers.flatten(inputs=layer, name='flatten_d')
     layer = tf.layers.dense(inputs=layer, activation=tf.nn.sigmoid, units=784, name='fc_d2')
     return layer
